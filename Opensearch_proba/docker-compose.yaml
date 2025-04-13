@@ -1,0 +1,94 @@
+---
+services:
+  opensearch-node1:
+    image: opensearchproject/opensearch:latest
+    container_name: opensearch-node1
+    environment:
+      - cluster.name=opensearch-cluster
+      - node.name=opensearch-node1
+      - discovery.seed_hosts=opensearch-node1
+      - cluster.initial_cluster_manager_nodes=opensearch-node1
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=Str0ng@Pass123!
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch-data1:/usr/share/opensearch/data
+    ports:
+      - 9200:9200
+      - 9600:9600
+    networks:
+      - opensearch-net
+    healthcheck:
+      test: ["CMD", "curl", "-k", "-u", "admin:Str0ng@Pass123!", "https://localhost:9200"]
+      interval: 10s
+      timeout: 5s
+      retries: 10      
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:latest
+    container_name: opensearch-dashboards
+    ports:
+      - 5601:5601
+    environment:
+      - 'OPENSEARCH_HOSTS=["https://opensearch-node1:9200"]'
+    networks:
+      - opensearch-net
+
+  fluentd:
+    user: root
+    build:
+      context: ./fluentd
+      dockerfile: Dockerfile
+    container_name: fluentd
+    volumes:
+      - /var/lib/docker/containers:/fluentd/containers:ro
+      - ./fluentd/pos:/fluentd/pos
+      - ./fluentd/selflogs:/fluentd/selflogs
+    ports:
+      - 24224:24224
+      - 24224:24224/udp
+    logging:
+      driver: "none"
+    networks:
+      - app-net
+      - opensearch-net
+    restart: on-failure
+    depends_on:
+      opensearch-node1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-k", "-u", "admin:Str0ng@Pass123!", "https://opensearch-node1:9200"]
+      interval: 10s
+      timeout: 5s
+      retries: 10    
+
+  fastapi:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: fastapi-app
+    ports:
+      - 8080:80
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - app-net
+    restart: on-failure
+
+volumes:
+  opensearch-data1:
+
+networks:
+  opensearch-net:
+  app-net:
+    driver: bridge
