@@ -4,8 +4,9 @@
 
 ```bash
 docker compose up -d
+```
 
-##Opensearch dashboard
+## Opensearch dashboard
 
 Можем наблюдать наши логи
 
